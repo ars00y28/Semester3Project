@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Page {
+  id        String   @id @default(uuid())
+  title     String   @default("Untitled")
+  type      String   @default("DOCUMENT")
+  content   String?
+  parentId  String?
+  parent    Page?    @relation("PageHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children  Page[]   @relation("PageHierarchy")
+  columns   Column[]
+  rows      Row[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Column {
+  id        String   @id @default(uuid())
+  pageId    String
+  page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  name      String
+  type      String   @default("TEXT")
+  order     Int      @default(0)
+  cells     Cell[]
+  createdAt DateTime @default(now())
+}
+
+model Row {
+  id        String   @id @default(uuid())
+  pageId    String
+  page      Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  cells     Cell[]
+  createdAt DateTime @default(now())
+}
+
+model Cell {
+  id       String  @id @default(uuid())
+  rowId    String
+  row      Row     @relation(fields: [rowId], references: [id], onDelete: Cascade)
+  columnId String
+  column   Column  @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  value    String?
+  @@unique([rowId, columnId])
+}
