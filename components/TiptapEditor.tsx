@@ -439,15 +439,15 @@ export default function TiptapEditor({ page, onRefresh }: Props) {
           [&_.ProseMirror_.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.ProseMirror_.is-editor-empty:first-child::before]:text-slate-300 [&_.ProseMirror_.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_.is-editor-empty:first-child::before]:pointer-events-none [&_.ProseMirror_.is-editor-empty:first-child::before]:h-0
         "
         onClick={e => {
-          e.stopPropagation();
           const link = (e.target as HTMLElement).closest('[data-page-id]');
           if (link) {
             e.preventDefault();
+            e.stopPropagation();
             const targetId = link.getAttribute('data-page-id');
             if (targetId) router.push(`/page/${targetId}`);
-          } else {
-            editor.commands.focus();
+            return;
           }
+          editor.commands.focus();
         }}
       />
 

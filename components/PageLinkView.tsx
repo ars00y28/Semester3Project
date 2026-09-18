@@ -42,19 +42,27 @@ export default function PageLinkView({ node }: any) {
   const icon = pageInfo.type === 'DATABASE' ? '🗄️' : '📄';
 
   return (
-    <NodeViewWrapper as="span" className="inline-block align-middle my-0.5 mx-1">
-      <a
-        href={`/page/${pageId}`}
+    <NodeViewWrapper
+      as="span"
+      className="inline-block align-middle my-0.5 mx-1"
+      contentEditable={false}
+    >
+      <button
+        type="button"
+        data-page-id={pageId}
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          router.push(`/page/${pageId}`);
+          if (pageId) {
+            router.push(`/page/${pageId}`);
+          }
         }}
-        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-slate-100 hover:bg-blue-50 text-slate-800 hover:text-blue-700 font-medium text-sm border border-slate-200 hover:border-blue-300 no-underline cursor-pointer transition-colors select-none"
+        onMouseDown={(e) => e.stopPropagation()}
+        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-slate-100 hover:bg-blue-50 text-slate-800 hover:text-blue-700 font-medium text-sm border border-slate-200 hover:border-blue-300 no-underline cursor-pointer transition-colors select-none text-left"
       >
         <span className="text-sm shrink-0">{icon}</span>
         <span className="truncate max-w-[240px]">{pageInfo.title}</span>
-      </a>
+      </button>
     </NodeViewWrapper>
   );
 }

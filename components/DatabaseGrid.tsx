@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import { io, Socket } from 'socket.io-client';
 
 export type ColumnType = 'TEXT' | 'STATUS' | 'DATE' | 'NUMBER';
@@ -74,6 +75,7 @@ interface Props {
 }
 
 export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
+  const router = useRouter();
   const [columns, setColumns] = useState<any[]>(page.columns || []);
   const [rows, setRows] = useState<any[]>(page.rows || []);
   const [title, setTitle] = useState(page.title || '');
@@ -450,24 +452,33 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
       {/* Title */}
       <div className="flex items-center justify-between mb-4">
         {isEmbedded ? (
-          <div className="flex items-center gap-2">
-            <span className="text-lg">🗄️</span>
-            <input
-              type="text"
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              onBlur={() => {
-                fetch(`/api/pages/${page.id}`, {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ title }),
-                });
-                socketRef.current?.emit('page:title', { pageId: page.id, title });
-                socketRef.current?.emit('page:sidebar-refresh');
-              }}
-              placeholder="Untitled Database"
-              className="text-lg font-bold text-slate-800 border-none outline-none bg-transparent hover:bg-slate-100 rounded px-1.5 py-0.5 transition-colors"
-            />
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🗄️</span>
+              <input
+                type="text"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                onBlur={() => {
+                  fetch(`/api/pages/${page.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title }),
+                  });
+                  socketRef.current?.emit('page:title', { pageId: page.id, title });
+                  socketRef.current?.emit('page:sidebar-refresh');
+                }}
+                placeholder="Untitled Database"
+                className="text-lg font-bold text-slate-800 border-none outline-none bg-transparent hover:bg-slate-100 rounded px-1.5 py-0.5 transition-colors"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push(`/page/${page.id}`)}
+              className="text-xs text-slate-400 hover:text-blue-600 px-2.5 py-1 rounded-lg hover:bg-slate-100 font-medium flex items-center gap-1 transition-colors"
+            >
+              Open as page ↗
+            </button>
           </div>
         ) : (
           <input

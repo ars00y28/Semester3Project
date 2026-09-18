@@ -31,6 +31,7 @@ export const PageLink = Node.create({
 
   parseHTML() {
     return [
+      { tag: 'button[data-page-id]' },
       { tag: 'span[data-page-id]' },
       { tag: 'a[data-page-id]' },
     ];
@@ -40,9 +41,10 @@ export const PageLink = Node.create({
     const icon = HTMLAttributes['data-page-type'] === 'DATABASE' ? '🗄️' : '📄';
     const title = HTMLAttributes['data-page-title'] || 'Untitled';
     return [
-      'a',
+      'button',
       mergeAttributes(HTMLAttributes, {
-        href: `/page/${HTMLAttributes['data-page-id']}`,
+        type: 'button',
+        'data-page-id': HTMLAttributes['data-page-id'],
         class: 'inline-flex items-center gap-1.5 px-2.5 py-0.5 my-0.5 mx-1 rounded-md bg-slate-100 hover:bg-blue-50 text-slate-800 hover:text-blue-700 font-medium text-sm border border-slate-200 hover:border-blue-300 no-underline cursor-pointer transition-colors select-none align-baseline',
       }),
       `${icon} ${title}`,
