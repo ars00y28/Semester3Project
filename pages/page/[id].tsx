@@ -51,7 +51,7 @@ export default function PageView({ onRefresh }: Props) {
   );
 
   return (
-    <div className="max-w-4xl mx-auto px-10 py-10">
+    <div className={page.type === 'DATABASE' ? "w-full px-6 sm:px-12 py-8 min-w-0" : "max-w-4xl mx-auto px-10 py-10"}>
       {/* Notion-style Breadcrumbs */}
       <nav className="flex items-center gap-2 text-xs text-slate-400 mb-8 overflow-x-auto whitespace-nowrap">
         <Link href="/" className="hover:text-slate-700 transition-colors">

@@ -80,7 +80,11 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
   const [editingCell, setEditingCell] = useState<{ rowId: string; colId: string } | null>(null);
   const [activeColMenu, setActiveColMenu] = useState<string | null>(null);
   const [editingColName, setEditingColName] = useState<{ id: string; name: string } | null>(null);
-  const [statusPicker, setStatusPicker] = useState<{ rowId: string; colId: string } | null>(null);
+  const [statusPicker, setStatusPicker] = useState<{
+    rowId: string;
+    colId: string;
+    position?: { top: number; left: number; openUpwards: boolean };
+  } | null>(null);
   const [editingStatus, setEditingStatus] = useState<{ id: string; name: string; color: StatusColor } | null>(null);
   const [isAddingStatus, setIsAddingStatus] = useState(false);
   const [newStatusName, setNewStatusName] = useState('');
@@ -90,6 +94,13 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
   const [newColType, setNewColType] = useState<ColumnType>('TEXT');
   const [newColNumberFormat, setNewColNumberFormat] = useState<NumberFormat>('number');
   const socketRef = useRef<Socket | null>(null);
+
+  useEffect(() => {
+    if (!statusPicker) return;
+    const handleScroll = () => setStatusPicker(null);
+    window.addEventListener('scroll', handleScroll, true);
+    return () => window.removeEventListener('scroll', handleScroll, true);
+  }, [statusPicker]);
 
   useEffect(() => {
     const socket = io({ path: '/api/socket' });
@@ -331,198 +342,37 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
 
     if (colType === 'STATUS') {
       const color = getStatusColor(val, col);
-      const isPickerOpen = statusPicker?.rowId === row.id && statusPicker?.colId === col.id;
-      const colStatuses = getColStatuses(col);
 
       return (
         <div
-          className="relative px-3 py-2 cursor-pointer"
+          className="px-3 py-2 cursor-pointer min-h-[38px] flex items-center"
           onClick={(e) => {
             e.stopPropagation();
-            setStatusPicker({ rowId: row.id, colId: col.id });
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const openUpwards = spaceBelow < 290;
+            const pickerWidth = 260;
+            let left = rect.left;
+            if (left + pickerWidth > window.innerWidth - 16) {
+              left = Math.max(16, window.innerWidth - pickerWidth - 16);
+            }
+            const top = openUpwards ? Math.max(10, rect.top - 285) : rect.bottom + 4;
+
+            setStatusPicker({
+              rowId: row.id,
+              colId: col.id,
+              position: { top, left, openUpwards },
+            });
             setEditingStatus(null);
             setIsAddingStatus(false);
           }}
         >
           {val ? (
-            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${color.bg} ${color.text} ${color.border}`}>
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border truncate ${color.bg} ${color.text} ${color.border}`}>
               {val}
             </span>
           ) : (
             <span className="text-xs text-slate-400 italic hover:text-slate-600">+ Select status</span>
-          )}
-
-          {/* Status Picker Dropdown */}
-          {isPickerOpen && (
-            <div
-              className="absolute left-2 top-full mt-1.5 z-40 bg-white border border-slate-200 rounded-xl shadow-2xl p-2 min-w-[220px] max-w-[280px]"
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-100">
-                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
-                  Status Options
-                </span>
-                <span className="text-[10px] text-slate-400">
-                  {colStatuses.length} {colStatuses.length === 1 ? 'option' : 'options'}
-                </span>
-              </div>
-
-              {/* Status List */}
-              <div className="max-h-56 overflow-y-auto space-y-1 py-0.5">
-                {colStatuses.map(st => {
-                  const c = STATUS_COLORS[st.color] || STATUS_COLORS.slate;
-                  const isBeingEdited = editingStatus?.id === st.id;
-
-                  if (isBeingEdited) {
-                    return (
-                      <div key={st.id} className="p-2 bg-slate-50 border border-blue-200 rounded-lg space-y-2">
-                        <input
-                          autoFocus
-                          value={editingStatus.name}
-                          onChange={e => setEditingStatus({ ...editingStatus, name: e.target.value })}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') handleSaveStatusEdit(col);
-                            if (e.key === 'Escape') setEditingStatus(null);
-                          }}
-                          className="w-full px-2 py-1 text-xs border border-slate-300 rounded outline-none focus:border-blue-500 bg-white"
-                          placeholder="Status name"
-                        />
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {(['slate', 'blue', 'emerald', 'amber', 'purple', 'rose', 'cyan'] as StatusColor[]).map(clr => (
-                            <button
-                              key={clr}
-                              type="button"
-                              onClick={() => setEditingStatus({ ...editingStatus, color: clr })}
-                              className={`w-4 h-4 rounded-full ${STATUS_COLORS[clr].dot} transition-transform ${
-                                editingStatus.color === clr ? 'scale-125 ring-2 ring-offset-1 ring-blue-500' : 'hover:scale-110'
-                              }`}
-                            />
-                          ))}
-                        </div>
-                        <div className="flex justify-end gap-1.5 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => setEditingStatus(null)}
-                            className="px-2 py-0.5 text-[11px] text-slate-500 hover:bg-slate-200 rounded"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleSaveStatusEdit(col)}
-                            className="px-2.5 py-0.5 text-[11px] bg-blue-600 text-white font-medium rounded hover:bg-blue-700"
-                          >
-                            Save
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div
-                      key={st.id}
-                      className="flex items-center justify-between group/st px-2 py-1.5 rounded-lg hover:bg-slate-100/80 transition-colors"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          updateCell(row.id, col.id, st.name);
-                          setStatusPicker(null);
-                        }}
-                        className="flex items-center gap-2 flex-1 text-left min-w-0"
-                      >
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border truncate ${c.bg} ${c.text} ${c.border}`}>
-                          {st.name}
-                        </span>
-                        {val === st.name && <span className="text-blue-600 text-xs ml-auto pr-1">✓</span>}
-                      </button>
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover/st:opacity-100 transition-opacity shrink-0">
-                        <button
-                          type="button"
-                          title="Edit status"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingStatus({ id: st.id, name: st.name, color: st.color });
-                          }}
-                          className="p-1 text-slate-400 hover:text-blue-600 hover:bg-slate-200 rounded text-[11px]"
-                        >
-                          ✏️
-                        </button>
-                        <button
-                          type="button"
-                          title="Delete status"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteStatusOption(col, st.id);
-                          }}
-                          className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded text-[11px]"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Add New Status Section */}
-              <div className="pt-2 mt-1.5 border-t border-slate-100">
-                {isAddingStatus ? (
-                  <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
-                    <input
-                      autoFocus
-                      value={newStatusName}
-                      onChange={e => setNewStatusName(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') handleAddStatusOption(col);
-                        if (e.key === 'Escape') setIsAddingStatus(false);
-                      }}
-                      placeholder="New status name..."
-                      className="w-full px-2 py-1 text-xs border border-slate-300 rounded outline-none focus:border-blue-500 bg-white"
-                    />
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {(['slate', 'blue', 'emerald', 'amber', 'purple', 'rose', 'cyan'] as StatusColor[]).map(clr => (
-                        <button
-                          key={clr}
-                          type="button"
-                          onClick={() => setNewStatusColor(clr)}
-                          className={`w-4 h-4 rounded-full ${STATUS_COLORS[clr].dot} transition-transform ${
-                            newStatusColor === clr ? 'scale-125 ring-2 ring-offset-1 ring-blue-500' : 'hover:scale-110'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                    <div className="flex justify-end gap-1.5 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => { setIsAddingStatus(false); setNewStatusName(''); }}
-                        className="px-2 py-0.5 text-[11px] text-slate-500 hover:bg-slate-200 rounded"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleAddStatusOption(col)}
-                        disabled={!newStatusName.trim()}
-                        className="px-2.5 py-0.5 text-[11px] bg-blue-600 text-white font-medium rounded hover:bg-blue-700 disabled:opacity-40"
-                      >
-                        Add
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setIsAddingStatus(true)}
-                    className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-lg text-xs text-blue-600 hover:bg-blue-50 font-medium transition-colors"
-                  >
-                    <span className="text-sm font-bold">+</span>
-                    Add status option
-                  </button>
-                )}
-              </div>
-            </div>
           )}
         </div>
       );
@@ -639,12 +489,15 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
         )}
       </div>
 
-      {/* Database Table */}
-      <div className="overflow-x-auto border border-slate-200 rounded-xl">
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="bg-slate-50/80 border-b border-slate-200">
-              {columns.map(col => {
+      {/* Database Table with Horizontal Scroll Support */}
+      <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-sm">
+        <table
+          className="w-full text-sm border-collapse"
+          style={{ minWidth: `${Math.max(680, columns.length * 180 + 60)}px` }}
+        >
+          <thead className="sticky top-0 z-20 bg-slate-50 border-b border-slate-200 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
+            <tr>
+              {columns.map((col, colIndex) => {
                 const meta = COLUMN_TYPE_META[(col.type as ColumnType)] || COLUMN_TYPE_META.TEXT;
                 const isMenuOpen = activeColMenu === col.id;
                 const isRenaming = editingColName?.id === col.id;
@@ -652,6 +505,7 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
                 return (
                   <th
                     key={col.id}
+                    style={{ minWidth: '170px' }}
                     className="relative text-left px-3 py-2.5 font-semibold text-slate-600 border-r border-slate-200 last:border-r-0 whitespace-nowrap group select-none"
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -688,7 +542,7 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
                     {/* Column Header Dropdown Menu */}
                     {isMenuOpen && (
                       <div
-                        className="absolute left-0 top-full mt-1 z-40 bg-white border border-slate-200 rounded-xl shadow-xl p-2 w-60 font-normal text-xs text-slate-700"
+                        className={`absolute ${colIndex >= columns.length - 2 ? 'right-0' : 'left-0'} top-full mt-1 z-40 bg-white border border-slate-200 rounded-xl shadow-xl p-2 w-60 font-normal text-xs text-slate-700`}
                         onClick={e => e.stopPropagation()}
                       >
                         <button
@@ -863,11 +717,11 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
                 className={`border-b border-slate-100 last:border-b-0 ${ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'} hover:bg-blue-50/20 transition-colors group`}
               >
                 {columns.map(col => (
-                  <td key={col.id} className="border-r border-slate-100 last:border-r-0 p-0">
+                  <td key={col.id} style={{ minWidth: '170px' }} className="border-r border-slate-100 last:border-r-0 p-0">
                     {renderCellContent(row, col)}
                   </td>
                 ))}
-                <td className="w-8 text-center p-0">
+                <td className="w-10 min-w-[40px] text-center p-0">
                   <button
                     type="button"
                     title="Delete row"
@@ -894,6 +748,198 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
           </span>
         </div>
       </div>
+
+      {/* Floating Status Picker (Fixed/Portal — Immune to table clipping) */}
+      {statusPicker && (() => {
+        const activeCol = columns.find(c => c.id === statusPicker.colId);
+        const activeRow = rows.find(r => r.id === statusPicker.rowId);
+        if (!activeCol || !activeRow) return null;
+        const colStatuses = getColStatuses(activeCol);
+        const currentVal = getCellValue(activeRow, activeCol.id);
+
+        return (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-transparent"
+              onClick={() => setStatusPicker(null)}
+            />
+            <div
+              className="fixed z-50 bg-white border border-slate-200 rounded-xl shadow-2xl p-2.5 w-[260px] animate-in fade-in zoom-in-95 duration-100 flex flex-col"
+              style={{
+                top: `${statusPicker.position?.top || 100}px`,
+                left: `${statusPicker.position?.left || 100}px`,
+                maxHeight: '320px',
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-100 shrink-0">
+                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
+                  Status Options
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  {colStatuses.length} {colStatuses.length === 1 ? 'option' : 'options'}
+                </span>
+              </div>
+
+              {/* Status List */}
+              <div className="overflow-y-auto flex-1 space-y-1 py-0.5 pr-0.5">
+                {colStatuses.map(st => {
+                  const c = STATUS_COLORS[st.color] || STATUS_COLORS.slate;
+                  const isBeingEdited = editingStatus?.id === st.id;
+
+                  if (isBeingEdited) {
+                    return (
+                      <div key={st.id} className="p-2 bg-slate-50 border border-blue-200 rounded-lg space-y-2">
+                        <input
+                          autoFocus
+                          value={editingStatus.name}
+                          onChange={e => setEditingStatus({ ...editingStatus, name: e.target.value })}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleSaveStatusEdit(activeCol);
+                            if (e.key === 'Escape') setEditingStatus(null);
+                          }}
+                          className="w-full px-2 py-1 text-xs border border-slate-300 rounded outline-none focus:border-blue-500 bg-white"
+                          placeholder="Status name"
+                        />
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {(['slate', 'blue', 'emerald', 'amber', 'purple', 'rose', 'cyan'] as StatusColor[]).map(clr => (
+                            <button
+                              key={clr}
+                              type="button"
+                              onClick={() => setEditingStatus({ ...editingStatus, color: clr })}
+                              className={`w-4 h-4 rounded-full ${STATUS_COLORS[clr].dot} transition-transform ${
+                                editingStatus.color === clr ? 'scale-125 ring-2 ring-offset-1 ring-blue-500' : 'hover:scale-110'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <div className="flex justify-end gap-1.5 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditingStatus(null)}
+                            className="px-2 py-0.5 text-[11px] text-slate-500 hover:bg-slate-200 rounded"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveStatusEdit(activeCol)}
+                            className="px-2.5 py-0.5 text-[11px] bg-blue-600 text-white font-medium rounded hover:bg-blue-700"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={st.id}
+                      className="flex items-center justify-between group/st px-2 py-1.5 rounded-lg hover:bg-slate-100/80 transition-colors"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateCell(activeRow.id, activeCol.id, st.name);
+                          setStatusPicker(null);
+                        }}
+                        className="flex items-center gap-2 flex-1 text-left min-w-0"
+                      >
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border truncate ${c.bg} ${c.text} ${c.border}`}>
+                          {st.name}
+                        </span>
+                        {currentVal === st.name && <span className="text-blue-600 text-xs ml-auto pr-1">✓</span>}
+                      </button>
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover/st:opacity-100 transition-opacity shrink-0">
+                        <button
+                          type="button"
+                          title="Edit status"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingStatus({ id: st.id, name: st.name, color: st.color });
+                          }}
+                          className="p-1 text-slate-400 hover:text-blue-600 hover:bg-slate-200 rounded text-[11px]"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          type="button"
+                          title="Delete status"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteStatusOption(activeCol, st.id);
+                          }}
+                          className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded text-[11px]"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Add New Status Section */}
+              <div className="pt-2 mt-1.5 border-t border-slate-100 shrink-0">
+                {isAddingStatus ? (
+                  <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+                    <input
+                      autoFocus
+                      value={newStatusName}
+                      onChange={e => setNewStatusName(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') handleAddStatusOption(activeCol);
+                        if (e.key === 'Escape') setIsAddingStatus(false);
+                      }}
+                      placeholder="New status name..."
+                      className="w-full px-2 py-1 text-xs border border-slate-300 rounded outline-none focus:border-blue-500 bg-white"
+                    />
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {(['slate', 'blue', 'emerald', 'amber', 'purple', 'rose', 'cyan'] as StatusColor[]).map(clr => (
+                        <button
+                          key={clr}
+                          type="button"
+                          onClick={() => setNewStatusColor(clr)}
+                          className={`w-4 h-4 rounded-full ${STATUS_COLORS[clr].dot} transition-transform ${
+                            newStatusColor === clr ? 'scale-125 ring-2 ring-offset-1 ring-blue-500' : 'hover:scale-110'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex justify-end gap-1.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => { setIsAddingStatus(false); setNewStatusName(''); }}
+                        className="px-2 py-0.5 text-[11px] text-slate-500 hover:bg-slate-200 rounded"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAddStatusOption(activeCol)}
+                        disabled={!newStatusName.trim()}
+                        className="px-2.5 py-0.5 text-[11px] bg-blue-600 text-white font-medium rounded hover:bg-blue-700 disabled:opacity-40"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingStatus(true)}
+                    className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-lg text-xs text-blue-600 hover:bg-blue-50 font-medium transition-colors"
+                  >
+                    <span className="text-sm font-bold">+</span>
+                    Add status option
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 }
