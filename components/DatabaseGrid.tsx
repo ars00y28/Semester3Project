@@ -10,15 +10,63 @@ export const COLUMN_TYPE_META: Record<ColumnType, { label: string; icon: string 
   NUMBER: { label: 'Number', icon: '🔢' },
 };
 
-export const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  'Not Started': { bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-200' },
-  'In Progress': { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-200' },
-  'Done': { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200' },
-  'Review': { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-200' },
-  'Blocked': { bg: 'bg-rose-100', text: 'text-rose-700', border: 'border-rose-200' },
+export type NumberFormat = 'number' | 'dollar' | 'euro' | 'pound' | 'rupee' | 'percent';
+
+export const NUMBER_FORMAT_META: Record<NumberFormat, { label: string; icon: string; symbol: string }> = {
+  number: { label: 'Number', icon: '🔢', symbol: '' },
+  dollar: { label: 'US Dollar ($)', icon: '💲', symbol: '$' },
+  euro: { label: 'Euro (€)', icon: '💶', symbol: '€' },
+  pound: { label: 'Pound (£)', icon: '💷', symbol: '£' },
+  rupee: { label: 'Rupee (₹)', icon: '₹', symbol: '₹' },
+  percent: { label: 'Percent (%)', icon: '٪', symbol: '%' },
 };
 
-const DEFAULT_STATUSES = ['Not Started', 'In Progress', 'Done', 'Review', 'Blocked'];
+export type StatusColor = 'slate' | 'blue' | 'emerald' | 'amber' | 'purple' | 'rose' | 'cyan';
+
+export interface StatusItem {
+  id: string;
+  name: string;
+  color: StatusColor;
+}
+
+export const STATUS_COLORS: Record<StatusColor, { bg: string; text: string; border: string; dot: string }> = {
+  slate: { bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-200', dot: 'bg-slate-400' },
+  blue: { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-200', dot: 'bg-blue-500' },
+  emerald: { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500' },
+  amber: { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-200', dot: 'bg-amber-500' },
+  purple: { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-200', dot: 'bg-purple-500' },
+  rose: { bg: 'bg-rose-100', text: 'text-rose-700', border: 'border-rose-200', dot: 'bg-rose-500' },
+  cyan: { bg: 'bg-cyan-100', text: 'text-cyan-700', border: 'border-cyan-200', dot: 'bg-cyan-500' },
+};
+
+export const DEFAULT_STATUSES: StatusItem[] = [
+  { id: 'not-started', name: 'Not Started', color: 'slate' },
+  { id: 'in-progress', name: 'In Progress', color: 'blue' },
+  { id: 'done', name: 'Done', color: 'emerald' },
+  { id: 'review', name: 'Review', color: 'purple' },
+  { id: 'blocked', name: 'Blocked', color: 'rose' },
+];
+
+export function formatNumberValue(val: string | number, format: NumberFormat = 'number'): string {
+  if (val === '' || val === null || val === undefined) return '';
+  const num = parseFloat(String(val));
+  if (isNaN(num)) return String(val);
+
+  switch (format) {
+    case 'dollar':
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
+    case 'euro':
+      return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(num);
+    case 'pound':
+      return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(num);
+    case 'rupee':
+      return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(num);
+    case 'percent':
+      return `${num}%`;
+    default:
+      return new Intl.NumberFormat('en-US').format(num);
+  }
+}
 
 interface Props {
   page: any;
@@ -33,9 +81,14 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
   const [activeColMenu, setActiveColMenu] = useState<string | null>(null);
   const [editingColName, setEditingColName] = useState<{ id: string; name: string } | null>(null);
   const [statusPicker, setStatusPicker] = useState<{ rowId: string; colId: string } | null>(null);
+  const [editingStatus, setEditingStatus] = useState<{ id: string; name: string; color: StatusColor } | null>(null);
+  const [isAddingStatus, setIsAddingStatus] = useState(false);
+  const [newStatusName, setNewStatusName] = useState('');
+  const [newStatusColor, setNewStatusColor] = useState<StatusColor>('blue');
   const [addingCol, setAddingCol] = useState(false);
   const [newColName, setNewColName] = useState('');
   const [newColType, setNewColType] = useState<ColumnType>('TEXT');
+  const [newColNumberFormat, setNewColNumberFormat] = useState<NumberFormat>('number');
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
@@ -68,12 +121,55 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
     return () => { socket.disconnect(); };
   }, [page.id]);
 
+  const parseColOptions = useCallback((col: any): { statuses?: StatusItem[]; numberFormat?: NumberFormat } => {
+    if (!col?.options) return {};
+    if (typeof col.options === 'object') return col.options;
+    try {
+      return JSON.parse(col.options);
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const getColStatuses = useCallback((col: any): StatusItem[] => {
+    const opts = parseColOptions(col);
+    if (opts.statuses && Array.isArray(opts.statuses) && opts.statuses.length > 0) {
+      return opts.statuses;
+    }
+    return DEFAULT_STATUSES;
+  }, [parseColOptions]);
+
+  const updateColumnOptions = async (columnId: string, newOptions: any) => {
+    const col = columns.find(c => c.id === columnId);
+    if (!col) return;
+    const updated = { ...col, options: JSON.stringify(newOptions) };
+    setColumns(prev => prev.map(c => c.id === columnId ? updated : c));
+    await fetch('/api/databases/columns', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: columnId, options: newOptions }),
+    });
+    socketRef.current?.emit('db:column-update', { pageId: page.id, column: updated });
+  };
+
   const addColumn = async () => {
     if (!newColName.trim()) return;
+    const initialOptions: any = {};
+    if (newColType === 'NUMBER') {
+      initialOptions.numberFormat = newColNumberFormat;
+    } else if (newColType === 'STATUS') {
+      initialOptions.statuses = DEFAULT_STATUSES;
+    }
+
     const res = await fetch('/api/databases/columns', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pageId: page.id, name: newColName.trim(), type: newColType }),
+      body: JSON.stringify({
+        pageId: page.id,
+        name: newColName.trim(),
+        type: newColType,
+        options: initialOptions,
+      }),
     });
     const col = await res.json();
     setColumns(prev => [...prev, col]);
@@ -81,18 +177,27 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
     setAddingCol(false);
     setNewColName('');
     setNewColType('TEXT');
+    setNewColNumberFormat('number');
   };
 
   const updateColumnType = async (columnId: string, type: ColumnType) => {
     setActiveColMenu(null);
     const col = columns.find(c => c.id === columnId);
     if (!col) return;
-    const updated = { ...col, type };
+    const existingOpts = parseColOptions(col);
+    const updatedOpts = { ...existingOpts };
+    if (type === 'NUMBER' && !updatedOpts.numberFormat) {
+      updatedOpts.numberFormat = 'number';
+    } else if (type === 'STATUS' && (!updatedOpts.statuses || !updatedOpts.statuses.length)) {
+      updatedOpts.statuses = DEFAULT_STATUSES;
+    }
+
+    const updated = { ...col, type, options: JSON.stringify(updatedOpts) };
     setColumns(prev => prev.map(c => c.id === columnId ? updated : c));
     await fetch('/api/databases/columns', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: columnId, type }),
+      body: JSON.stringify({ id: columnId, type, options: updatedOpts }),
     });
     socketRef.current?.emit('db:column-update', { pageId: page.id, column: updated });
   };
@@ -162,8 +267,62 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
     socketRef.current?.emit('db:cell-update', { pageId: page.id, rowId, columnId, value });
   }, [page.id]);
 
+  const handleAddStatusOption = (col: any) => {
+    if (!newStatusName.trim()) return;
+    const currentStatuses = getColStatuses(col);
+    const newItem: StatusItem = {
+      id: 'st-' + Date.now(),
+      name: newStatusName.trim(),
+      color: newStatusColor,
+    };
+    const newStatuses = [...currentStatuses, newItem];
+    const opts = parseColOptions(col);
+    updateColumnOptions(col.id, { ...opts, statuses: newStatuses });
+    setNewStatusName('');
+    setIsAddingStatus(false);
+  };
+
+  const handleSaveStatusEdit = (col: any) => {
+    if (!editingStatus || !editingStatus.name.trim()) return;
+    const currentStatuses = getColStatuses(col);
+    const newStatuses = currentStatuses.map(s =>
+      s.id === editingStatus.id ? { ...s, name: editingStatus.name.trim(), color: editingStatus.color } : s
+    );
+    const opts = parseColOptions(col);
+    updateColumnOptions(col.id, { ...opts, statuses: newStatuses });
+    setEditingStatus(null);
+  };
+
+  const handleDeleteStatusOption = (col: any, statusId: string) => {
+    const currentStatuses = getColStatuses(col);
+    const newStatuses = currentStatuses.filter(s => s.id !== statusId);
+    const opts = parseColOptions(col);
+    updateColumnOptions(col.id, { ...opts, statuses: newStatuses });
+    if (editingStatus?.id === statusId) {
+      setEditingStatus(null);
+    }
+  };
+
   const getCellValue = (row: any, columnId: string) =>
     row.cells?.find((c: any) => c.columnId === columnId)?.value || '';
+
+  const getStatusColor = (val: string, col: any) => {
+    if (!val) return STATUS_COLORS.slate;
+    const statuses = getColStatuses(col);
+    const found = statuses.find(s => s.name.toLowerCase() === val.toLowerCase());
+    if (found && STATUS_COLORS[found.color]) {
+      return STATUS_COLORS[found.color];
+    }
+    const legacyMap: Record<string, StatusColor> = {
+      'not started': 'slate',
+      'in progress': 'blue',
+      'done': 'emerald',
+      'review': 'purple',
+      'blocked': 'rose',
+    };
+    const c = legacyMap[val.toLowerCase()] || 'slate';
+    return STATUS_COLORS[c];
+  };
 
   const renderCellContent = (row: any, col: any) => {
     const val = getCellValue(row, col.id);
@@ -171,17 +330,22 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
     const isEditing = editingCell?.rowId === row.id && editingCell?.colId === col.id;
 
     if (colType === 'STATUS') {
-      const color = STATUS_COLORS[val] || { bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-200' };
+      const color = getStatusColor(val, col);
+      const isPickerOpen = statusPicker?.rowId === row.id && statusPicker?.colId === col.id;
+      const colStatuses = getColStatuses(col);
+
       return (
         <div
           className="relative px-3 py-2 cursor-pointer"
           onClick={(e) => {
             e.stopPropagation();
             setStatusPicker({ rowId: row.id, colId: col.id });
+            setEditingStatus(null);
+            setIsAddingStatus(false);
           }}
         >
           {val ? (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${color.bg} ${color.text} ${color.border}`}>
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${color.bg} ${color.text} ${color.border}`}>
               {val}
             </span>
           ) : (
@@ -189,30 +353,175 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
           )}
 
           {/* Status Picker Dropdown */}
-          {statusPicker?.rowId === row.id && statusPicker?.colId === col.id && (
+          {isPickerOpen && (
             <div
-              className="absolute left-2 top-full mt-1 z-30 bg-white border border-slate-200 rounded-xl shadow-xl p-1.5 min-w-[150px]"
+              className="absolute left-2 top-full mt-1.5 z-40 bg-white border border-slate-200 rounded-xl shadow-2xl p-2 min-w-[220px] max-w-[280px]"
               onClick={e => e.stopPropagation()}
             >
-              <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold px-2 py-1">Select Status</div>
-              {DEFAULT_STATUSES.map(st => {
-                const c = STATUS_COLORS[st];
-                return (
+              <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-100">
+                <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
+                  Status Options
+                </span>
+                <span className="text-[10px] text-slate-400">
+                  {colStatuses.length} {colStatuses.length === 1 ? 'option' : 'options'}
+                </span>
+              </div>
+
+              {/* Status List */}
+              <div className="max-h-56 overflow-y-auto space-y-1 py-0.5">
+                {colStatuses.map(st => {
+                  const c = STATUS_COLORS[st.color] || STATUS_COLORS.slate;
+                  const isBeingEdited = editingStatus?.id === st.id;
+
+                  if (isBeingEdited) {
+                    return (
+                      <div key={st.id} className="p-2 bg-slate-50 border border-blue-200 rounded-lg space-y-2">
+                        <input
+                          autoFocus
+                          value={editingStatus.name}
+                          onChange={e => setEditingStatus({ ...editingStatus, name: e.target.value })}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') handleSaveStatusEdit(col);
+                            if (e.key === 'Escape') setEditingStatus(null);
+                          }}
+                          className="w-full px-2 py-1 text-xs border border-slate-300 rounded outline-none focus:border-blue-500 bg-white"
+                          placeholder="Status name"
+                        />
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {(['slate', 'blue', 'emerald', 'amber', 'purple', 'rose', 'cyan'] as StatusColor[]).map(clr => (
+                            <button
+                              key={clr}
+                              type="button"
+                              onClick={() => setEditingStatus({ ...editingStatus, color: clr })}
+                              className={`w-4 h-4 rounded-full ${STATUS_COLORS[clr].dot} transition-transform ${
+                                editingStatus.color === clr ? 'scale-125 ring-2 ring-offset-1 ring-blue-500' : 'hover:scale-110'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <div className="flex justify-end gap-1.5 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditingStatus(null)}
+                            className="px-2 py-0.5 text-[11px] text-slate-500 hover:bg-slate-200 rounded"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveStatusEdit(col)}
+                            className="px-2.5 py-0.5 text-[11px] bg-blue-600 text-white font-medium rounded hover:bg-blue-700"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div
+                      key={st.id}
+                      className="flex items-center justify-between group/st px-2 py-1.5 rounded-lg hover:bg-slate-100/80 transition-colors"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateCell(row.id, col.id, st.name);
+                          setStatusPicker(null);
+                        }}
+                        className="flex items-center gap-2 flex-1 text-left min-w-0"
+                      >
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border truncate ${c.bg} ${c.text} ${c.border}`}>
+                          {st.name}
+                        </span>
+                        {val === st.name && <span className="text-blue-600 text-xs ml-auto pr-1">✓</span>}
+                      </button>
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover/st:opacity-100 transition-opacity shrink-0">
+                        <button
+                          type="button"
+                          title="Edit status"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingStatus({ id: st.id, name: st.name, color: st.color });
+                          }}
+                          className="p-1 text-slate-400 hover:text-blue-600 hover:bg-slate-200 rounded text-[11px]"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          type="button"
+                          title="Delete status"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteStatusOption(col, st.id);
+                          }}
+                          className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded text-[11px]"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Add New Status Section */}
+              <div className="pt-2 mt-1.5 border-t border-slate-100">
+                {isAddingStatus ? (
+                  <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+                    <input
+                      autoFocus
+                      value={newStatusName}
+                      onChange={e => setNewStatusName(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') handleAddStatusOption(col);
+                        if (e.key === 'Escape') setIsAddingStatus(false);
+                      }}
+                      placeholder="New status name..."
+                      className="w-full px-2 py-1 text-xs border border-slate-300 rounded outline-none focus:border-blue-500 bg-white"
+                    />
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {(['slate', 'blue', 'emerald', 'amber', 'purple', 'rose', 'cyan'] as StatusColor[]).map(clr => (
+                        <button
+                          key={clr}
+                          type="button"
+                          onClick={() => setNewStatusColor(clr)}
+                          className={`w-4 h-4 rounded-full ${STATUS_COLORS[clr].dot} transition-transform ${
+                            newStatusColor === clr ? 'scale-125 ring-2 ring-offset-1 ring-blue-500' : 'hover:scale-110'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex justify-end gap-1.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => { setIsAddingStatus(false); setNewStatusName(''); }}
+                        className="px-2 py-0.5 text-[11px] text-slate-500 hover:bg-slate-200 rounded"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAddStatusOption(col)}
+                        disabled={!newStatusName.trim()}
+                        className="px-2.5 py-0.5 text-[11px] bg-blue-600 text-white font-medium rounded hover:bg-blue-700 disabled:opacity-40"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                ) : (
                   <button
-                    key={st}
                     type="button"
-                    onClick={() => {
-                      updateCell(row.id, col.id, st);
-                      setStatusPicker(null);
-                    }}
-                    className="flex items-center w-full px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors text-left"
+                    onClick={() => setIsAddingStatus(true)}
+                    className="flex items-center gap-1.5 w-full px-2 py-1.5 rounded-lg text-xs text-blue-600 hover:bg-blue-50 font-medium transition-colors"
                   >
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${c.bg} ${c.text} ${c.border}`}>
-                      {st}
-                    </span>
+                    <span className="text-sm font-bold">+</span>
+                    Add status option
                   </button>
-                );
-              })}
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -233,10 +542,15 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
     }
 
     if (colType === 'NUMBER') {
+      const opts = parseColOptions(col);
+      const fmt = opts.numberFormat || 'number';
+      const formatted = formatNumberValue(val, fmt);
+
       return isEditing ? (
         <input
           autoFocus
           type="number"
+          step="any"
           defaultValue={val}
           className="w-full px-3 py-2 outline-none bg-blue-50/60 font-mono text-xs focus:ring-1 focus:ring-blue-400"
           onBlur={e => { updateCell(row.id, col.id, e.target.value); setEditingCell(null); }}
@@ -244,10 +558,14 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
         />
       ) : (
         <div
-          className="px-3 py-2 min-h-[38px] cursor-pointer font-mono text-xs text-slate-800"
+          className="px-3 py-2 min-h-[38px] cursor-pointer font-mono text-xs text-slate-800 flex items-center"
           onClick={() => setEditingCell({ rowId: row.id, colId: col.id })}
         >
-          {val || <span className="text-slate-300">0</span>}
+          {val !== '' && val !== null && val !== undefined ? (
+            <span>{formatted}</span>
+          ) : (
+            <span className="text-slate-300 font-normal">0</span>
+          )}
         </div>
       );
     }
@@ -356,7 +674,11 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
                             setActiveColMenu(isMenuOpen ? null : col.id);
                           }}
                         >
-                          <span className="text-xs">{meta.icon}</span>
+                          <span className="text-xs">
+                            {col.type === 'NUMBER' && parseColOptions(col).numberFormat && NUMBER_FORMAT_META[parseColOptions(col).numberFormat as NumberFormat]
+                              ? NUMBER_FORMAT_META[parseColOptions(col).numberFormat as NumberFormat].icon
+                              : meta.icon}
+                          </span>
                           <span className="text-xs font-medium text-slate-700">{col.name}</span>
                           <span className="text-[10px] text-slate-400 group-hover:text-slate-600">▾</span>
                         </div>
@@ -366,7 +688,7 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
                     {/* Column Header Dropdown Menu */}
                     {isMenuOpen && (
                       <div
-                        className="absolute left-0 top-full mt-1 z-40 bg-white border border-slate-200 rounded-xl shadow-xl p-2 w-56 font-normal text-xs text-slate-700"
+                        className="absolute left-0 top-full mt-1 z-40 bg-white border border-slate-200 rounded-xl shadow-xl p-2 w-60 font-normal text-xs text-slate-700"
                         onClick={e => e.stopPropagation()}
                       >
                         <button
@@ -407,6 +729,42 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
                           );
                         })}
 
+                        {/* Number Format Options if column is NUMBER */}
+                        {col.type === 'NUMBER' && (
+                          <>
+                            <div className="h-px bg-slate-100 my-1.5" />
+                            <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold px-2.5 py-1">
+                              Number Format Options
+                            </div>
+                            {(['number', 'dollar', 'euro', 'pound', 'rupee', 'percent'] as NumberFormat[]).map(fmt => {
+                              const fm = NUMBER_FORMAT_META[fmt];
+                              const currentFmt = parseColOptions(col).numberFormat || 'number';
+                              const isFmtActive = currentFmt === fmt;
+
+                              return (
+                                <button
+                                  key={fmt}
+                                  type="button"
+                                  onClick={() => {
+                                    const opts = parseColOptions(col);
+                                    updateColumnOptions(col.id, { ...opts, numberFormat: fmt });
+                                    setActiveColMenu(null);
+                                  }}
+                                  className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg text-left transition-colors ${
+                                    isFmtActive ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-slate-100 text-slate-700'
+                                  }`}
+                                >
+                                  <span className="flex items-center gap-2">
+                                    <span>{fm.icon}</span>
+                                    <span>{fm.label}</span>
+                                  </span>
+                                  {isFmtActive && <span>✓</span>}
+                                </button>
+                              );
+                            })}
+                          </>
+                        )}
+
                         <div className="h-px bg-slate-100 my-1" />
 
                         <button
@@ -425,7 +783,7 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
               {/* Add Column Button */}
               <th className="px-2 py-2 w-10 border-r border-slate-200">
                 {addingCol ? (
-                  <div className="flex items-center gap-1.5 p-1 bg-white border border-blue-400 rounded-lg shadow-sm" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center gap-1.5 p-1.5 bg-white border border-blue-400 rounded-xl shadow-lg z-30" onClick={e => e.stopPropagation()}>
                     <input
                       autoFocus
                       value={newColName}
@@ -435,24 +793,48 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
                         if (e.key === 'Escape') { setAddingCol(false); setNewColName(''); }
                       }}
                       placeholder="Column name"
-                      className="w-24 text-xs px-1.5 py-0.5 outline-none font-normal"
+                      className="w-28 text-xs px-2 py-1 outline-none font-normal border border-slate-200 rounded"
                     />
                     <select
                       value={newColType}
                       onChange={e => setNewColType(e.target.value as ColumnType)}
-                      className="text-[11px] bg-slate-50 border border-slate-200 rounded px-1 py-0.5 outline-none font-normal"
+                      className="text-xs bg-slate-50 border border-slate-200 rounded px-1.5 py-1 outline-none font-normal"
                     >
-                      <option value="TEXT">Text</option>
-                      <option value="STATUS">Status</option>
-                      <option value="DATE">Date</option>
-                      <option value="NUMBER">Number</option>
+                      <option value="TEXT">📝 Text</option>
+                      <option value="STATUS">🏷️ Status</option>
+                      <option value="DATE">📅 Date</option>
+                      <option value="NUMBER">🔢 Number</option>
                     </select>
+
+                    {newColType === 'NUMBER' && (
+                      <select
+                        value={newColNumberFormat}
+                        onChange={e => setNewColNumberFormat(e.target.value as NumberFormat)}
+                        className="text-xs bg-slate-50 border border-slate-200 rounded px-1.5 py-1 outline-none font-normal"
+                      >
+                        <option value="number">🔢 Number</option>
+                        <option value="dollar">💲 US Dollar ($)</option>
+                        <option value="euro">💶 Euro (€)</option>
+                        <option value="pound">💷 Pound (£)</option>
+                        <option value="rupee">₹ Rupee (₹)</option>
+                        <option value="percent">٪ Percent (%)</option>
+                      </select>
+                    )}
+
                     <button
                       type="button"
                       onClick={addColumn}
-                      className="text-xs bg-blue-600 text-white rounded px-2 py-0.5 font-medium hover:bg-blue-700"
+                      disabled={!newColName.trim()}
+                      className="text-xs bg-blue-600 text-white rounded px-2.5 py-1 font-medium hover:bg-blue-700 disabled:opacity-40"
                     >
                       Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setAddingCol(false); setNewColName(''); }}
+                      className="text-xs text-slate-400 hover:text-slate-600 px-1"
+                    >
+                      ✕
                     </button>
                   </div>
                 ) : (

@@ -29,6 +29,7 @@ model Column {
   name      String
   type      String   @default("TEXT")
   order     Int      @default(0)
+  options   String?
   cells     Cell[]
   createdAt DateTime @default(now())
 }

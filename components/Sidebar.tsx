@@ -7,9 +7,11 @@ import { io } from 'socket.io-client';
 interface Props {
   pages: any[];
   onRefresh: () => void;
+  isOpen?: boolean;
+  onToggle?: () => void;
 }
 
-export function Sidebar({ pages, onRefresh }: Props) {
+export function Sidebar({ pages, onRefresh, isOpen = true, onToggle }: Props) {
   const router = useRouter();
   const [modal, setModal] = useState<{ parentId?: string } | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -134,12 +136,26 @@ export function Sidebar({ pages, onRefresh }: Props) {
 
   return (
     <>
-      <aside className="w-64 bg-slate-50 h-screen border-r border-slate-200 flex flex-col shrink-0">
+      <aside
+        className={`bg-slate-50 h-screen border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 ease-in-out select-none ${
+          isOpen ? 'w-64 opacity-100' : 'w-0 opacity-0 overflow-hidden border-r-0 pointer-events-none'
+        }`}
+      >
         {/* Header */}
-        <div className="px-4 py-3.5 border-b border-slate-200 flex items-center justify-between">
-          <Link href="/" className="font-bold text-slate-800 text-sm tracking-tight hover:text-blue-600 transition-colors">
+        <div className="px-4 py-3.5 border-b border-slate-200 flex items-center justify-between min-w-[256px]">
+          <Link href="/" className="font-bold text-slate-800 text-sm tracking-tight hover:text-blue-600 transition-colors truncate">
             ⚙ Engineering Notion
           </Link>
+          {onToggle && (
+            <button
+              type="button"
+              onClick={onToggle}
+              title="Collapse sidebar"
+              className="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/80 rounded transition-colors text-sm font-semibold ml-1 shrink-0"
+            >
+              «
+            </button>
+          )}
         </div>
 
         {/* New page button */}
