@@ -45,7 +45,10 @@ export function Sidebar({ pages, onRefresh, isOpen = true, onToggle }: Props) {
     e.stopPropagation();
     if (!confirm('Delete this page and all its sub-pages?')) return;
     await fetch(`/api/pages/${id}`, { method: 'DELETE' });
-    onRefresh();
+    const socket = io({ path: '/api/socket' });
+    socket.emit('page:sidebar-refresh');
+    setTimeout(() => socket.disconnect(), 500);
+    await onRefresh();
     if (router.query.id === id) router.push('/');
   };
 

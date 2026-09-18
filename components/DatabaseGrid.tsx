@@ -72,15 +72,22 @@ export function formatNumberValue(val: string | number, format: NumberFormat = '
 interface Props {
   page: any;
   isEmbedded?: boolean;
+  onDeleteDatabase?: () => void;
 }
 
-export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
+export default function DatabaseGrid({ page, isEmbedded = false, onDeleteDatabase }: Props) {
   const router = useRouter();
   const [columns, setColumns] = useState<any[]>(page.columns || []);
   const [rows, setRows] = useState<any[]>(page.rows || []);
   const [title, setTitle] = useState(page.title || '');
   const [editingCell, setEditingCell] = useState<{ rowId: string; colId: string } | null>(null);
-  const [activeColMenu, setActiveColMenu] = useState<string | null>(null);
+  const [colMenu, setColMenu] = useState<{
+    colId: string;
+    position: { top: number; left: number; openUpwards: boolean };
+  } | null>(null);
+  const [addColPopover, setAddColPopover] = useState<{
+    position: { top: number; left: number };
+  } | null>(null);
   const [editingColName, setEditingColName] = useState<{ id: string; name: string } | null>(null);
   const [statusPicker, setStatusPicker] = useState<{
     rowId: string;
@@ -91,18 +98,21 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
   const [isAddingStatus, setIsAddingStatus] = useState(false);
   const [newStatusName, setNewStatusName] = useState('');
   const [newStatusColor, setNewStatusColor] = useState<StatusColor>('blue');
-  const [addingCol, setAddingCol] = useState(false);
   const [newColName, setNewColName] = useState('');
   const [newColType, setNewColType] = useState<ColumnType>('TEXT');
   const [newColNumberFormat, setNewColNumberFormat] = useState<NumberFormat>('number');
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    if (!statusPicker) return;
-    const handleScroll = () => setStatusPicker(null);
+    if (!statusPicker && !colMenu && !addColPopover) return;
+    const handleScroll = () => {
+      setStatusPicker(null);
+      setColMenu(null);
+      setAddColPopover(null);
+    };
     window.addEventListener('scroll', handleScroll, true);
     return () => window.removeEventListener('scroll', handleScroll, true);
-  }, [statusPicker]);
+  }, [statusPicker, colMenu, addColPopover]);
 
   useEffect(() => {
     const socket = io({ path: '/api/socket' });
@@ -187,14 +197,14 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
     const col = await res.json();
     setColumns(prev => [...prev, col]);
     socketRef.current?.emit('db:column-add', { pageId: page.id, column: col });
-    setAddingCol(false);
+    setAddColPopover(null);
     setNewColName('');
     setNewColType('TEXT');
     setNewColNumberFormat('number');
   };
 
   const updateColumnType = async (columnId: string, type: ColumnType) => {
-    setActiveColMenu(null);
+    setColMenu(null);
     const col = columns.find(c => c.id === columnId);
     if (!col) return;
     const existingOpts = parseColOptions(col);
@@ -231,7 +241,7 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
   };
 
   const deleteColumn = async (columnId: string) => {
-    setActiveColMenu(null);
+    setColMenu(null);
     if (!confirm('Delete this column and its data?')) return;
     setColumns(prev => prev.filter(c => c.id !== columnId));
     await fetch('/api/databases/columns', {
@@ -441,11 +451,56 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
     );
   };
 
+  const handleDeleteEmbeddedDb = async () => {
+    if (!confirm(`Are you sure you want to delete database "${title || 'Untitled'}" and remove it from navigation?`)) return;
+    await fetch(`/api/pages/${page.id}`, { method: 'DELETE' });
+    const socket = io({ path: '/api/socket' });
+    socket.emit('page:sidebar-refresh');
+    setTimeout(() => socket.disconnect(), 500);
+    if (onDeleteDatabase) onDeleteDatabase();
+  };
+
+  const handleOpenColMenu = (e: React.MouseEvent, colId: string) => {
+    e.stopPropagation();
+    if (colMenu?.colId === colId) {
+      setColMenu(null);
+      return;
+    }
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const menuHeight = 360;
+    const menuWidth = 250;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUpwards = spaceBelow < menuHeight && rect.top > menuHeight;
+    const top = openUpwards
+      ? Math.max(10, rect.top - menuHeight - 4)
+      : Math.min(window.innerHeight - menuHeight - 10, rect.bottom + 4);
+    const left = Math.min(Math.max(10, rect.left), window.innerWidth - menuWidth - 16);
+    setColMenu({ colId, position: { top, left, openUpwards } });
+  };
+
+  const handleOpenAddCol = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (addColPopover) {
+      setAddColPopover(null);
+      return;
+    }
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const popoverWidth = 280;
+    const popoverHeight = 290;
+    const top = Math.min(window.innerHeight - popoverHeight - 10, rect.bottom + 6);
+    const left = Math.min(Math.max(10, rect.left - popoverWidth + rect.width), window.innerWidth - popoverWidth - 16);
+    setAddColPopover({ position: { top, left } });
+    setNewColName('');
+    setNewColType('TEXT');
+    setNewColNumberFormat('number');
+  };
+
   return (
     <div
       className={isEmbedded ? "my-6 border border-slate-200 rounded-2xl bg-white shadow-sm p-4" : ""}
       onClick={() => {
-        setActiveColMenu(null);
+        setColMenu(null);
+        setAddColPopover(null);
         setStatusPicker(null);
       }}
     >
@@ -472,13 +527,23 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
                 className="text-lg font-bold text-slate-800 border-none outline-none bg-transparent hover:bg-slate-100 rounded px-1.5 py-0.5 transition-colors"
               />
             </div>
-            <button
-              type="button"
-              onClick={() => router.push(`/page/${page.id}`)}
-              className="text-xs text-slate-400 hover:text-blue-600 px-2.5 py-1 rounded-lg hover:bg-slate-100 font-medium flex items-center gap-1 transition-colors"
-            >
-              Open as page ↗
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => router.push(`/page/${page.id}`)}
+                className="text-xs text-slate-400 hover:text-blue-600 px-2.5 py-1 rounded-lg hover:bg-slate-100 font-medium flex items-center gap-1 transition-colors"
+              >
+                Open as page ↗
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteEmbeddedDb}
+                title="Delete this database"
+                className="text-xs text-slate-400 hover:text-red-600 px-2 py-1 rounded-lg hover:bg-red-50 font-medium flex items-center gap-1 transition-colors"
+              >
+                🗑️ Delete
+              </button>
+            </div>
           </div>
         ) : (
           <input
@@ -508,9 +573,8 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
         >
           <thead className="sticky top-0 z-20 bg-slate-50 border-b border-slate-200 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
             <tr>
-              {columns.map((col, colIndex) => {
+              {columns.map((col) => {
                 const meta = COLUMN_TYPE_META[(col.type as ColumnType)] || COLUMN_TYPE_META.TEXT;
-                const isMenuOpen = activeColMenu === col.id;
                 const isRenaming = editingColName?.id === col.id;
 
                 return (
@@ -534,10 +598,7 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
                       ) : (
                         <div
                           className="flex items-center gap-1.5 cursor-pointer hover:text-slate-900"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveColMenu(isMenuOpen ? null : col.id);
-                          }}
+                          onClick={(e) => handleOpenColMenu(e, col.id)}
                         >
                           <span className="text-xs">
                             {col.type === 'NUMBER' && parseColOptions(col).numberFormat && NUMBER_FORMAT_META[parseColOptions(col).numberFormat as NumberFormat]
@@ -549,169 +610,20 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
                         </div>
                       )}
                     </div>
-
-                    {/* Column Header Dropdown Menu */}
-                    {isMenuOpen && (
-                      <div
-                        className={`absolute ${colIndex >= columns.length - 2 ? 'right-0' : 'left-0'} top-full mt-1 z-40 bg-white border border-slate-200 rounded-xl shadow-xl p-2 w-60 font-normal text-xs text-slate-700`}
-                        onClick={e => e.stopPropagation()}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveColMenu(null);
-                            setEditingColName({ id: col.id, name: col.name });
-                          }}
-                          className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg hover:bg-slate-100 text-left transition-colors font-medium text-slate-700 mb-1"
-                        >
-                          ✏️ Rename Column
-                        </button>
-
-                        <div className="h-px bg-slate-100 my-1" />
-
-                        <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold px-2.5 py-1">
-                          Column Type
-                        </div>
-
-                        {(['TEXT', 'STATUS', 'DATE', 'NUMBER'] as ColumnType[]).map(t => {
-                          const m = COLUMN_TYPE_META[t];
-                          const isActive = (col.type || 'TEXT') === t;
-                          return (
-                            <button
-                              key={t}
-                              type="button"
-                              onClick={() => updateColumnType(col.id, t)}
-                              className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg text-left transition-colors ${
-                                isActive ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-slate-100 text-slate-700'
-                              }`}
-                            >
-                              <span className="flex items-center gap-2">
-                                <span>{m.icon}</span>
-                                <span>{m.label}</span>
-                              </span>
-                              {isActive && <span>✓</span>}
-                            </button>
-                          );
-                        })}
-
-                        {/* Number Format Options if column is NUMBER */}
-                        {col.type === 'NUMBER' && (
-                          <>
-                            <div className="h-px bg-slate-100 my-1.5" />
-                            <div className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold px-2.5 py-1">
-                              Number Format Options
-                            </div>
-                            {(['number', 'dollar', 'euro', 'pound', 'rupee', 'percent'] as NumberFormat[]).map(fmt => {
-                              const fm = NUMBER_FORMAT_META[fmt];
-                              const currentFmt = parseColOptions(col).numberFormat || 'number';
-                              const isFmtActive = currentFmt === fmt;
-
-                              return (
-                                <button
-                                  key={fmt}
-                                  type="button"
-                                  onClick={() => {
-                                    const opts = parseColOptions(col);
-                                    updateColumnOptions(col.id, { ...opts, numberFormat: fmt });
-                                    setActiveColMenu(null);
-                                  }}
-                                  className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg text-left transition-colors ${
-                                    isFmtActive ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-slate-100 text-slate-700'
-                                  }`}
-                                >
-                                  <span className="flex items-center gap-2">
-                                    <span>{fm.icon}</span>
-                                    <span>{fm.label}</span>
-                                  </span>
-                                  {isFmtActive && <span>✓</span>}
-                                </button>
-                              );
-                            })}
-                          </>
-                        )}
-
-                        <div className="h-px bg-slate-100 my-1" />
-
-                        <button
-                          type="button"
-                          onClick={() => deleteColumn(col.id)}
-                          className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg hover:bg-red-50 text-red-600 text-left transition-colors font-medium"
-                        >
-                          🗑️ Delete Column
-                        </button>
-                      </div>
-                    )}
                   </th>
                 );
               })}
 
               {/* Add Column Button */}
               <th className="px-2 py-2 w-10 border-r border-slate-200">
-                {addingCol ? (
-                  <div className="flex items-center gap-1.5 p-1.5 bg-white border border-blue-400 rounded-xl shadow-lg z-30" onClick={e => e.stopPropagation()}>
-                    <input
-                      autoFocus
-                      value={newColName}
-                      onChange={e => setNewColName(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') addColumn();
-                        if (e.key === 'Escape') { setAddingCol(false); setNewColName(''); }
-                      }}
-                      placeholder="Column name"
-                      className="w-28 text-xs px-2 py-1 outline-none font-normal border border-slate-200 rounded"
-                    />
-                    <select
-                      value={newColType}
-                      onChange={e => setNewColType(e.target.value as ColumnType)}
-                      className="text-xs bg-slate-50 border border-slate-200 rounded px-1.5 py-1 outline-none font-normal"
-                    >
-                      <option value="TEXT">📝 Text</option>
-                      <option value="STATUS">🏷️ Status</option>
-                      <option value="DATE">📅 Date</option>
-                      <option value="NUMBER">🔢 Number</option>
-                    </select>
-
-                    {newColType === 'NUMBER' && (
-                      <select
-                        value={newColNumberFormat}
-                        onChange={e => setNewColNumberFormat(e.target.value as NumberFormat)}
-                        className="text-xs bg-slate-50 border border-slate-200 rounded px-1.5 py-1 outline-none font-normal"
-                      >
-                        <option value="number">🔢 Number</option>
-                        <option value="dollar">💲 US Dollar ($)</option>
-                        <option value="euro">💶 Euro (€)</option>
-                        <option value="pound">💷 Pound (£)</option>
-                        <option value="rupee">₹ Rupee (₹)</option>
-                        <option value="percent">٪ Percent (%)</option>
-                      </select>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={addColumn}
-                      disabled={!newColName.trim()}
-                      className="text-xs bg-blue-600 text-white rounded px-2.5 py-1 font-medium hover:bg-blue-700 disabled:opacity-40"
-                    >
-                      Add
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setAddingCol(false); setNewColName(''); }}
-                      className="text-xs text-slate-400 hover:text-slate-600 px-1"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setAddingCol(true); }}
-                    title="Add Column"
-                    className="w-6 h-6 rounded flex items-center justify-center hover:bg-slate-200 text-slate-400 hover:text-slate-700 text-base font-bold mx-auto transition-colors"
-                  >
-                    +
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={handleOpenAddCol}
+                  title="Add Column"
+                  className="w-6 h-6 rounded flex items-center justify-center hover:bg-slate-200 text-slate-400 hover:text-slate-700 text-base font-bold mx-auto transition-colors"
+                >
+                  +
+                </button>
               </th>
             </tr>
           </thead>
@@ -951,6 +863,228 @@ export default function DatabaseGrid({ page, isEmbedded = false }: Props) {
           </>
         );
       })()}
+
+      {/* Floating Column Options Menu (Fixed/Portal — Immune to table clipping) */}
+      {colMenu && (() => {
+        const col = columns.find(c => c.id === colMenu.colId);
+        if (!col) return null;
+
+        return (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-transparent"
+              onClick={() => setColMenu(null)}
+            />
+            <div
+              className="fixed z-50 bg-white border border-slate-200 rounded-xl shadow-2xl p-2 w-64 max-h-[85vh] overflow-y-auto font-normal text-xs text-slate-700 animate-in fade-in zoom-in-95 duration-100 flex flex-col"
+              style={{
+                top: `${colMenu.position.top}px`,
+                left: `${colMenu.position.left}px`,
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setColMenu(null);
+                  setEditingColName({ id: col.id, name: col.name });
+                }}
+                className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg hover:bg-slate-100 text-left transition-colors font-medium text-slate-700 mb-1"
+              >
+                ✏️ Rename Column
+              </button>
+
+              <div className="h-px bg-slate-100 my-1" />
+
+              <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold px-2.5 py-1">
+                Select Column Type
+              </div>
+
+              {(['TEXT', 'STATUS', 'DATE', 'NUMBER'] as ColumnType[]).map(t => {
+                const m = COLUMN_TYPE_META[t];
+                const isActive = (col.type || 'TEXT') === t;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => {
+                      updateColumnType(col.id, t);
+                      if (t !== 'NUMBER') setColMenu(null);
+                    }}
+                    className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg text-left transition-colors ${
+                      isActive ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span>{m.icon}</span>
+                      <span>{m.label}</span>
+                    </span>
+                    {isActive && <span>✓</span>}
+                  </button>
+                );
+              })}
+
+              {/* Number Format Options if column is NUMBER */}
+              {col.type === 'NUMBER' && (
+                <>
+                  <div className="h-px bg-slate-100 my-1.5" />
+                  <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold px-2.5 py-1">
+                    Number Format Options
+                  </div>
+                  {(['number', 'dollar', 'euro', 'pound', 'rupee', 'percent'] as NumberFormat[]).map(fmt => {
+                    const fm = NUMBER_FORMAT_META[fmt];
+                    const currentFmt = parseColOptions(col).numberFormat || 'number';
+                    const isFmtActive = currentFmt === fmt;
+
+                    return (
+                      <button
+                        key={fmt}
+                        type="button"
+                        onClick={() => {
+                          const opts = parseColOptions(col);
+                          updateColumnOptions(col.id, { ...opts, numberFormat: fmt });
+                          setColMenu(null);
+                        }}
+                        className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-lg text-left transition-colors ${
+                          isFmtActive ? 'bg-blue-50 text-blue-700 font-semibold' : 'hover:bg-slate-100 text-slate-700'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span>{fm.icon}</span>
+                          <span>{fm.label}</span>
+                        </span>
+                        {isFmtActive && <span>✓</span>}
+                      </button>
+                    );
+                  })}
+                </>
+              )}
+
+              <div className="h-px bg-slate-100 my-1" />
+
+              <button
+                type="button"
+                onClick={() => {
+                  deleteColumn(col.id);
+                  setColMenu(null);
+                }}
+                className="flex items-center gap-2 w-full px-2.5 py-1.5 rounded-lg hover:bg-red-50 text-red-600 text-left transition-colors font-medium"
+              >
+                🗑️ Delete Column
+              </button>
+            </div>
+          </>
+        );
+      })()}
+
+      {/* Floating Add Column Popover (Fixed/Portal — Immune to table clipping) */}
+      {addColPopover && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-transparent"
+            onClick={() => setAddColPopover(null)}
+          />
+          <div
+            className="fixed z-50 bg-white border border-slate-200 rounded-xl shadow-2xl p-3 w-72 font-normal text-xs text-slate-700 animate-in fade-in zoom-in-95 duration-100 flex flex-col gap-2.5"
+            style={{
+              top: `${addColPopover.position.top}px`,
+              left: `${addColPopover.position.left}px`,
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 font-bold text-slate-800">
+              <span>+ Add New Column</span>
+              <button
+                type="button"
+                onClick={() => setAddColPopover(null)}
+                className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Column Name</label>
+              <input
+                autoFocus
+                value={newColName}
+                onChange={e => setNewColName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    addColumn();
+                    setAddColPopover(null);
+                  }
+                  if (e.key === 'Escape') setAddColPopover(null);
+                }}
+                placeholder="e.g. Priority, Due Date, Budget"
+                className="w-full text-xs px-2.5 py-1.5 outline-none font-normal border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Select Type</label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {(['TEXT', 'STATUS', 'DATE', 'NUMBER'] as ColumnType[]).map(t => {
+                  const m = COLUMN_TYPE_META[t];
+                  const isSelected = newColType === t;
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setNewColType(t)}
+                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                        isSelected ? 'border-blue-500 bg-blue-50 text-blue-700 font-semibold' : 'border-slate-200 hover:bg-slate-50 text-slate-600'
+                      }`}
+                    >
+                      <span>{m.icon}</span>
+                      <span>{m.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {newColType === 'NUMBER' && (
+              <div>
+                <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Number Format</label>
+                <select
+                  value={newColNumberFormat}
+                  onChange={e => setNewColNumberFormat(e.target.value as NumberFormat)}
+                  className="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 outline-none font-normal"
+                >
+                  <option value="number">🔢 Number</option>
+                  <option value="dollar">💲 US Dollar ($)</option>
+                  <option value="euro">💶 Euro (€)</option>
+                  <option value="pound">💷 Pound (£)</option>
+                  <option value="rupee">₹ Rupee (₹)</option>
+                  <option value="percent">٪ Percent (%)</option>
+                </select>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-1 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setAddColPopover(null)}
+                className="px-2.5 py-1 text-xs text-slate-500 hover:bg-slate-100 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  addColumn();
+                  setAddColPopover(null);
+                }}
+                disabled={!newColName.trim()}
+                className="px-3 py-1 text-xs bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-40"
+              >
+                Add Column
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

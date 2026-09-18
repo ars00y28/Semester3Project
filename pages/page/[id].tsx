@@ -50,34 +50,63 @@ export default function PageView({ onRefresh }: Props) {
     </div>
   );
 
+  const handleDeletePage = async () => {
+    const isDb = page?.type === 'DATABASE';
+    if (!confirm(`Are you sure you want to delete this ${isDb ? 'database' : 'page'} and all its contents?`)) return;
+    const parentId = page?.parentId;
+    await fetch(`/api/pages/${page.id}`, { method: 'DELETE' });
+    const { io } = await import('socket.io-client');
+    const socket = io({ path: '/api/socket' });
+    socket.emit('page:sidebar-refresh');
+    setTimeout(() => socket.disconnect(), 500);
+    onRefresh();
+    if (parentId) {
+      router.push(`/page/${parentId}`);
+    } else {
+      router.push('/');
+    }
+  };
+
   return (
     <div className={page.type === 'DATABASE' ? "w-full px-6 sm:px-12 py-8 min-w-0" : "max-w-4xl mx-auto px-10 py-10"}>
-      {/* Notion-style Breadcrumbs */}
-      <nav className="flex items-center gap-2 text-xs text-slate-400 mb-8 overflow-x-auto whitespace-nowrap">
-        <Link href="/" className="hover:text-slate-700 transition-colors">
-          ⚙ Workspace
-        </Link>
-        {page.parent?.parent && (
-          <>
-            <span>/</span>
-            <Link href={`/page/${page.parent.parent.id}`} className="hover:text-slate-700 transition-colors">
-              {page.parent.parent.title || 'Untitled'}
-            </Link>
-          </>
-        )}
-        {page.parent && (
-          <>
-            <span>/</span>
-            <Link href={`/page/${page.parent.id}`} className="hover:text-slate-700 transition-colors font-medium">
-              {page.parent.title || 'Untitled'}
-            </Link>
-          </>
-        )}
-        <span>/</span>
-        <span className="text-slate-800 font-semibold truncate max-w-[220px]">
-          {page.title || 'Untitled'}
-        </span>
-      </nav>
+      {/* Top Bar with Breadcrumbs & Actions */}
+      <div className="flex items-center justify-between gap-4 mb-8">
+        <nav className="flex items-center gap-2 text-xs text-slate-400 overflow-x-auto whitespace-nowrap min-w-0">
+          <Link href="/" className="hover:text-slate-700 transition-colors">
+            ⚙ Workspace
+          </Link>
+          {page.parent?.parent && (
+            <>
+              <span>/</span>
+              <Link href={`/page/${page.parent.parent.id}`} className="hover:text-slate-700 transition-colors">
+                {page.parent.parent.title || 'Untitled'}
+              </Link>
+            </>
+          )}
+          {page.parent && (
+            <>
+              <span>/</span>
+              <Link href={`/page/${page.parent.id}`} className="hover:text-slate-700 transition-colors font-medium">
+                {page.parent.title || 'Untitled'}
+              </Link>
+            </>
+          )}
+          <span>/</span>
+          <span className="text-slate-800 font-semibold truncate max-w-[220px]">
+            {page.title || 'Untitled'}
+          </span>
+        </nav>
+
+        <button
+          type="button"
+          onClick={handleDeletePage}
+          title={`Delete this ${page.type === 'DATABASE' ? 'database' : 'page'}`}
+          className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0 font-medium"
+        >
+          <span>🗑️</span>
+          <span>Delete {page.type === 'DATABASE' ? 'Database' : 'Page'}</span>
+        </button>
+      </div>
 
       {/* Main Content (Editor or Database) */}
       {page.type === 'DOCUMENT' ? (
