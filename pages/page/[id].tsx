@@ -69,9 +69,15 @@ export default function PageView({ onRefresh }: Props) {
   };
 
   return (
-    <div className={page.type === 'DATABASE' ? "w-full px-4 sm:px-12 py-6 sm:py-8 min-w-0" : "max-w-4xl mx-auto px-4 sm:px-10 py-6 sm:py-10"}>
+    <div className={
+      page.type === 'LATEX' 
+        ? "flex flex-col h-full w-full min-w-0" 
+        : page.type === 'DATABASE' 
+          ? "w-full px-4 sm:px-12 py-6 sm:py-8 min-w-0" 
+          : "max-w-4xl mx-auto px-4 sm:px-10 py-6 sm:py-10"
+    }>
       {/* Top Bar with Breadcrumbs & Actions */}
-      <div className="flex items-center justify-between gap-4 mb-8">
+      <div className={`flex items-center justify-between gap-4 ${page.type === 'LATEX' ? 'px-4 sm:px-6 py-4 border-b border-slate-200 shrink-0' : 'mb-8'}`}>
         <nav className="flex items-center gap-2 text-xs text-slate-400 overflow-x-auto whitespace-nowrap min-w-0">
           <Link href="/" className="hover:text-slate-700 transition-colors">
             ⚙ Workspace

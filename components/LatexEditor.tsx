@@ -9,6 +9,7 @@ interface Props {
 export function LatexEditor({ page, onRefresh }: Props) {
   const [content, setContent] = useState(page.content || '');
   const [isSaving, setIsSaving] = useState(false);
+  const [isCompiling, setIsCompiling] = useState(false);
   const [previewKey, setPreviewKey] = useState(Date.now());
   const saveTimeout = useRef<NodeJS.Timeout | null>(null);
 
@@ -19,7 +20,6 @@ export function LatexEditor({ page, onRefresh }: Props) {
     
     socket.on('page:content', (data: { content: string }) => {
       setContent(data.content);
-      setPreviewKey(Date.now()); // Re-render preview on remote changes
     });
 
     return () => { socket.disconnect(); };
@@ -38,37 +38,41 @@ export function LatexEditor({ page, onRefresh }: Props) {
     setTimeout(() => socket.disconnect(), 500);
     
     setIsSaving(false);
-    setPreviewKey(Date.now()); // Re-render preview on local save completion
   }, [page.id]);
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newContent = e.target.value;
     setContent(newContent);
     
+    // Autosave in the background, but do NOT compile automatically.
     if (saveTimeout.current) clearTimeout(saveTimeout.current);
     saveTimeout.current = setTimeout(() => {
       saveContent(newContent);
-    }, 1500); // 1.5s debounce for LaTeX compiling
+    }, 1500);
   };
 
-  const handleManualCompile = () => {
+  const handleManualCompile = async () => {
     if (saveTimeout.current) clearTimeout(saveTimeout.current);
-    saveContent(content);
+    setIsCompiling(true);
+    await saveContent(content);
+    setPreviewKey(Date.now());
+    setTimeout(() => setIsCompiling(false), 1000); // just to show visual feedback
   };
 
   return (
-    <div className="flex h-[calc(100vh-140px)] border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+    <div className="flex-1 flex w-full border-t border-slate-200 overflow-hidden bg-white">
       {/* Editor Pane */}
       <div className="w-1/2 flex flex-col bg-slate-50 border-r border-slate-200 min-w-0">
-        <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-white">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-white shrink-0">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Source Code</span>
           <div className="flex items-center gap-3">
             {isSaving && <span className="text-xs text-blue-500">Saving...</span>}
             <button 
               onClick={handleManualCompile}
-              className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded transition-colors"
+              disabled={isCompiling}
+              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded shadow-sm transition-colors disabled:opacity-50 flex items-center gap-1.5"
             >
-              Compile
+              <span>{isCompiling ? '⏳ Compiling...' : '▶ Compile'}</span>
             </button>
           </div>
         </div>
@@ -83,11 +87,20 @@ export function LatexEditor({ page, onRefresh }: Props) {
 
       {/* Preview Pane */}
       <div className="w-1/2 flex flex-col bg-slate-200 min-w-0">
-        <div className="flex items-center justify-between px-4 py-2 border-b border-slate-300 bg-slate-100">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-slate-300 bg-slate-100 shrink-0">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">PDF Preview</span>
+          <a
+            href={`/api/latex/preview?id=${page.id}&t=${previewKey}`}
+            target="_blank"
+            download={`document_${page.id}.pdf`}
+            className="px-3 py-1 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-medium rounded transition-colors shadow-sm flex items-center gap-1.5"
+            title="Download the compiled PDF file"
+          >
+            <span>📥</span>
+            <span>Download PDF</span>
+          </a>
         </div>
         <div className="flex-1 w-full bg-white relative">
-          {/* We use a key to force the iframe to reload entirely when previewKey changes */}
           <iframe 
             key={previewKey}
             src={`/api/latex/preview?id=${page.id}&t=${previewKey}`} 
