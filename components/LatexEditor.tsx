@@ -117,12 +117,22 @@ export function LatexEditor({ page, onRefresh }: Props) {
       )}
 
       {/* Resizer Handle */}
-      {splitPercent > 0 && splitPercent < 100 && (
-        <div 
-          onMouseDown={(e) => { e.preventDefault(); setIsDragging(true); }}
-          className="w-1.5 bg-slate-200 hover:bg-blue-400 active:bg-blue-500 cursor-col-resize z-10 transition-colors shrink-0"
-        />
-      )}
+      <div 
+        onMouseDown={(e) => { e.preventDefault(); setIsDragging(true); }}
+        onDoubleClick={() => setSplitPercent(50)}
+        title="Drag to resize. Double-click to reset."
+        className={`relative flex items-center justify-center bg-slate-200 hover:bg-blue-400 active:bg-blue-500 cursor-col-resize z-20 transition-colors shrink-0 group ${splitPercent === 0 || splitPercent === 100 ? 'w-4' : 'w-1.5'}`}
+      >
+        {(splitPercent === 0 || splitPercent === 100) && (
+          <button 
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setSplitPercent(50); }}
+            className="text-[10px] text-slate-600 group-hover:text-white font-bold"
+          >
+            {splitPercent === 0 ? '▶' : '◀'}
+          </button>
+        )}
+      </div>
 
       {/* Preview Pane */}
       {splitPercent < 100 && (
