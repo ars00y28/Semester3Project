@@ -16,6 +16,13 @@ export function Sidebar({ pages, onRefresh, isOpen = true, onToggle }: Props) {
   const [modal, setModal] = useState<{ parentId?: string } | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [width, setWidth] = useState(256);
+  const [isResizing, setIsResizing] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('notion_sidebar_width');
+    if (saved) setWidth(Number(saved));
+  }, []);
 
   // Listen for sidebar refresh events from other users
   useEffect(() => {
@@ -23,6 +30,39 @@ export function Sidebar({ pages, onRefresh, isOpen = true, onToggle }: Props) {
     socket.on('sidebar:refresh', () => onRefresh());
     return () => { socket.disconnect(); };
   }, [onRefresh]);
+
+  useEffect(() => {
+    if (!isResizing) return;
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      let newWidth = e.clientX;
+      if (newWidth < 200) newWidth = 200;
+      if (newWidth > 600) newWidth = 600;
+      setWidth(newWidth);
+    };
+    
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      setWidth(prev => {
+        localStorage.setItem('notion_sidebar_width', String(prev));
+        return prev;
+      });
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
+
+  const startResizing = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
 
   // Automatically expand parent of currently active page
   useEffect(() => {
@@ -139,11 +179,22 @@ export function Sidebar({ pages, onRefresh, isOpen = true, onToggle }: Props) {
 
   return (
     <>
-      <aside
-        className={`bg-slate-50 h-screen border-r border-slate-200 flex flex-col shrink-0 transition-all duration-300 ease-in-out select-none ${
-          isOpen ? 'w-64 opacity-100' : 'w-0 opacity-0 overflow-hidden border-r-0 pointer-events-none'
-        }`}
-      >
+      <div className="flex h-full relative z-40">
+        {/* Backdrop for mobile when sidebar is open */}
+        {isOpen && (
+          <div 
+            className="md:hidden fixed inset-0 bg-black/20 z-30" 
+            onClick={onToggle}
+          />
+        )}
+        <aside
+          style={{ width: isOpen ? `${width}px` : '0px' }}
+          className={`bg-slate-50 h-screen border-r border-slate-200 flex flex-col shrink-0 select-none max-w-[80vw] ${
+            isResizing ? '' : 'transition-[width,opacity] duration-300 ease-in-out'
+          } ${
+            isOpen ? 'opacity-100' : 'opacity-0 overflow-hidden border-r-0 pointer-events-none'
+          } md:relative absolute z-40`}
+        >
         {/* Header */}
         <div className="px-4 py-3.5 border-b border-slate-200 flex items-center justify-between min-w-[256px]">
           <Link href="/" className="font-bold text-slate-800 text-sm tracking-tight hover:text-blue-600 transition-colors truncate">
@@ -183,7 +234,14 @@ export function Sidebar({ pages, onRefresh, isOpen = true, onToggle }: Props) {
             buildTree(null)
           )}
         </div>
+        
+        {/* Resize Handle */}
+        <div 
+          onMouseDown={startResizing}
+          className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-blue-400/50 active:bg-blue-500 z-50 group-hover:bg-blue-300 transition-colors"
+        />
       </aside>
+      </div>
 
       {modal !== null && (
         <CreateModal

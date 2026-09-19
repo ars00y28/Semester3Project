@@ -68,7 +68,7 @@ export default function PageView({ onRefresh }: Props) {
   };
 
   return (
-    <div className={page.type === 'DATABASE' ? "w-full px-6 sm:px-12 py-8 min-w-0" : "max-w-4xl mx-auto px-10 py-10"}>
+    <div className={page.type === 'DATABASE' ? "w-full px-4 sm:px-12 py-6 sm:py-8 min-w-0" : "max-w-4xl mx-auto px-4 sm:px-10 py-6 sm:py-10"}>
       {/* Top Bar with Breadcrumbs & Actions */}
       <div className="flex items-center justify-between gap-4 mb-8">
         <nav className="flex items-center gap-2 text-xs text-slate-400 overflow-x-auto whitespace-nowrap min-w-0">

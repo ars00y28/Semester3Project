@@ -1,5 +1,6 @@
 import '@/styles/globals.css';
 import type { AppProps } from 'next/app';
+import Head from 'next/head';
 import { Sidebar } from '@/components/Sidebar';
 import { useEffect, useState, useCallback } from 'react';
 
@@ -29,8 +30,12 @@ export default function App({ Component, pageProps }: AppProps) {
   }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white text-slate-900 antialiased">
-      <Sidebar
+    <>
+      <Head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+      </Head>
+      <div className="flex h-screen overflow-hidden bg-white text-slate-900 antialiased">
+        <Sidebar
         pages={pages}
         onRefresh={refreshPages}
         isOpen={sidebarOpen}
@@ -51,5 +56,6 @@ export default function App({ Component, pageProps }: AppProps) {
         <Component {...pageProps} onRefresh={refreshPages} />
       </main>
     </div>
+    </>
   );
 }
