@@ -9,8 +9,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === 'POST') {
     const { title, type, parentId } = req.body;
+    let initialContent = null;
+    
+    if (type === 'LATEX') {
+      initialContent = `\\documentclass{article}
+\\usepackage[utf8]{inputenc}
+\\usepackage{amsmath}
+
+\\title{Untitled LaTeX Document}
+\\author{Engineering Notion User}
+\\date{\\today}
+
+\\begin{document}
+
+\\maketitle
+
+\\section{Introduction}
+Welcome to your new LaTeX document. This editor behaves like Overleaf.
+
+\\subsection{Math Example}
+Here is a famous equation:
+\\begin{equation}
+    E = mc^2
+\\end{equation}
+
+\\end{document}`;
+    }
+
     const page = await prisma.page.create({
-      data: { title: title || 'Untitled', type: type || 'DOCUMENT', parentId: parentId || null },
+      data: { 
+        title: title || 'Untitled', 
+        type: type || 'DOCUMENT', 
+        parentId: parentId || null,
+        content: initialContent
+      },
     });
     if (type === 'DATABASE') {
       const colName = await prisma.column.create({ data: { pageId: page.id, name: 'Task / Item', type: 'TEXT', order: 0 } });

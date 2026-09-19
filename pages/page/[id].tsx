@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback } from 'react';
 
 const TiptapEditor = dynamic(() => import('@/components/TiptapEditor'), { ssr: false });
 const DatabaseGrid = dynamic(() => import('@/components/DatabaseGrid'), { ssr: false });
+const LatexEditor = dynamic(() => import('@/components/LatexEditor').then(m => m.LatexEditor), { ssr: false });
 
 interface Props { onRefresh: () => void; }
 
@@ -108,15 +109,19 @@ export default function PageView({ onRefresh }: Props) {
         </button>
       </div>
 
-      {/* Main Content (Editor or Database) */}
-      {page.type === 'DOCUMENT' ? (
+      {/* Main Content (Editor, Database, or LaTeX) */}
+      {page.type === 'DOCUMENT' && (
         <TiptapEditor
           key={page.id}
           page={page}
           onRefresh={onRefresh}
         />
-      ) : (
+      )}
+      {page.type === 'DATABASE' && (
         <DatabaseGrid key={page.id} page={page} />
+      )}
+      {page.type === 'LATEX' && (
+        <LatexEditor key={page.id} page={page} onRefresh={onRefresh} />
       )}
     </div>
   );

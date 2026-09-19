@@ -141,7 +141,9 @@ export function Sidebar({ pages, onRefresh, isOpen = true, onToggle }: Props) {
 
             {/* Page Link */}
             <Link href={`/page/${p.id}`} className="flex items-center flex-1 py-1.5 text-sm min-w-0">
-              <span className="mr-2 text-sm shrink-0">{p.type === 'DATABASE' ? '🗄️' : '📄'}</span>
+              <span className="mr-2 text-sm shrink-0">
+                {p.type === 'DATABASE' ? '🗄️' : p.type === 'LATEX' ? '🧮' : '📄'}
+              </span>
               <span className="truncate">{p.title || 'Untitled'}</span>
             </Link>
 

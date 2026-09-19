@@ -8,7 +8,7 @@ interface Props {
 
 export function CreateModal({ parentId, onClose, onCreated }: Props) {
   const [title, setTitle] = useState('');
-  const [type, setType] = useState<'DOCUMENT' | 'DATABASE'>('DOCUMENT');
+  const [type, setType] = useState<'DOCUMENT' | 'DATABASE' | 'LATEX'>('DOCUMENT');
   const [loading, setLoading] = useState(false);
 
   const handleCreate = async () => {
@@ -33,7 +33,7 @@ export function CreateModal({ parentId, onClose, onCreated }: Props) {
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl w-[440px] p-7"
+        className="bg-white rounded-2xl shadow-2xl w-[480px] p-7"
         onClick={e => e.stopPropagation()}
       >
         <h2 className="text-xl font-bold text-slate-800 mb-1">Create New Page</h2>
@@ -42,18 +42,18 @@ export function CreateModal({ parentId, onClose, onCreated }: Props) {
         </p>
 
         {/* Type selector */}
-        <div className="flex gap-3 mb-5">
-          {(['DOCUMENT', 'DATABASE'] as const).map(t => (
+        <div className="flex gap-2 mb-5">
+          {(['DOCUMENT', 'DATABASE', 'LATEX'] as const).map(t => (
             <button
               key={t}
               onClick={() => setType(t)}
-              className={`flex-1 py-3 rounded-xl text-sm font-semibold border-2 transition-all ${
+              className={`flex-1 py-3 px-1 rounded-xl text-sm font-semibold border-2 transition-all ${
                 type === t
                   ? 'border-blue-500 bg-blue-50 text-blue-700'
                   : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
               }`}
             >
-              {t === 'DOCUMENT' ? '📄 Document' : '🗄️ Database'}
+              {t === 'DOCUMENT' ? '📄 Document' : t === 'DATABASE' ? '🗄️ Database' : '🧮 LaTeX'}
             </button>
           ))}
         </div>
