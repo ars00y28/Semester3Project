@@ -385,35 +385,35 @@ export default function TiptapEditor({ page, onRefresh }: Props) {
             <div className="w-px h-5 bg-slate-200 mx-1" />
             <button
               type="button"
-              onMouseDown={e => { e.preventDefault(); editor.chain().focus().addRowAfter().run(); }}
+              onClick={() => editor.chain().focus().addRowAfter().run()}
               className="px-2 py-0.5 rounded text-[11px] bg-slate-100 text-slate-700 hover:bg-slate-200"
             >
               + Row
             </button>
             <button
               type="button"
-              onMouseDown={e => { e.preventDefault(); editor.chain().focus().addColumnAfter().run(); }}
+              onClick={() => editor.chain().focus().addColumnAfter().run()}
               className="px-2 py-0.5 rounded text-[11px] bg-slate-100 text-slate-700 hover:bg-slate-200"
             >
               + Col
             </button>
             <button
               type="button"
-              onMouseDown={e => { e.preventDefault(); editor.chain().focus().deleteRow().run(); }}
+              onClick={() => editor.chain().focus().deleteRow().run()}
               className="px-2 py-0.5 rounded text-[11px] bg-red-50 text-red-600 hover:bg-red-100"
             >
               ✕ Row
             </button>
             <button
               type="button"
-              onMouseDown={e => { e.preventDefault(); editor.chain().focus().deleteColumn().run(); }}
+              onClick={() => editor.chain().focus().deleteColumn().run()}
               className="px-2 py-0.5 rounded text-[11px] bg-red-50 text-red-600 hover:bg-red-100"
             >
               ✕ Col
             </button>
             <button
               type="button"
-              onMouseDown={e => { e.preventDefault(); editor.chain().focus().deleteTable().run(); }}
+              onClick={() => editor.chain().focus().deleteTable().run()}
               className="px-2 py-0.5 rounded text-[11px] bg-red-100 text-red-700 hover:bg-red-200"
             >
               Delete Table

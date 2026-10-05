@@ -77,7 +77,7 @@ export function Sidebar({ pages, onRefresh, isOpen = true, onToggle }: Props) {
   const toggleExpand = (id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setExpanded(prev => ({ ...prev, [id]: prev[id] === undefined ? false : !prev[id] }));
+    setExpanded(prev => ({ ...prev, [id]: prev[id] === true ? false : true }));
   };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
@@ -111,8 +111,8 @@ export function Sidebar({ pages, onRefresh, isOpen = true, onToggle }: Props) {
 
     return children.map(p => {
       const hasChildren = pages.some(c => c.parentId === p.id);
-      // Default to expanded (true) unless explicitly collapsed (false)
-      const isExpanded = expanded[p.id] !== false;
+      // Default to collapsed (false) unless explicitly expanded (true)
+      const isExpanded = expanded[p.id] === true;
 
       return (
         <div key={p.id}>
