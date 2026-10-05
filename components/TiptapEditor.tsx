@@ -78,6 +78,7 @@ export default function TiptapEditor({ page, onRefresh }: Props) {
   const socketRef = useRef<Socket | null>(null);
   const isReceiving = useRef(false);
   const saveTimer = useRef<any>(null);
+  const [updateKey, setUpdateKey] = useState(0);
 
   const handleSubpageCreated = (newPage: any) => {
     setShowSubpageModal(false);
@@ -216,6 +217,10 @@ export default function TiptapEditor({ page, onRefresh }: Props) {
         socketRef.current?.emit('page:content', { pageId: page.id, content: str });
       }, 600);
     },
+    onSelectionUpdate: () => {
+      // Force React to re-render so editor.isActive('table') is instantly updated
+      setUpdateKey(k => k + 1);
+    }
   });
 
   // Socket.io realtime

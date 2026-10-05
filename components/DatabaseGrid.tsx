@@ -618,7 +618,7 @@ export default function DatabaseGrid({ page, isEmbedded = false, onDeleteDatabas
               <th className="px-2 py-2 w-10 border-r border-slate-200">
                 <button
                   type="button"
-                  onClick={handleOpenAddCol}
+                  onMouseDown={(e) => { e.stopPropagation(); handleOpenAddCol(e); }}
                   title="Add Column"
                   className="w-6 h-6 rounded flex items-center justify-center hover:bg-slate-200 text-slate-400 hover:text-slate-700 text-base font-bold mx-auto transition-colors"
                 >
@@ -661,7 +661,7 @@ export default function DatabaseGrid({ page, isEmbedded = false, onDeleteDatabas
         <div className="px-3 py-2 border-t border-slate-100 flex items-center justify-between bg-slate-50/40">
           <button
             type="button"
-            onClick={addRow}
+            onMouseDown={(e) => { e.stopPropagation(); addRow(); }}
             className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 font-medium transition-colors py-0.5 px-2 rounded hover:bg-slate-200/60"
           >
             <span className="text-sm font-bold leading-none">+</span> New Row
@@ -694,6 +694,7 @@ export default function DatabaseGrid({ page, isEmbedded = false, onDeleteDatabas
                 maxHeight: '320px',
               }}
               onClick={e => e.stopPropagation()}
+            onMouseDown={e => e.stopPropagation()}
             >
               <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-100 shrink-0">
                 <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
@@ -882,6 +883,7 @@ export default function DatabaseGrid({ page, isEmbedded = false, onDeleteDatabas
                 left: `${colMenu.position.left}px`,
               }}
               onClick={e => e.stopPropagation()}
+            onMouseDown={e => e.stopPropagation()}
             >
               <button
                 type="button"
@@ -991,6 +993,7 @@ export default function DatabaseGrid({ page, isEmbedded = false, onDeleteDatabas
               left: `${addColPopover.position.left}px`,
             }}
             onClick={e => e.stopPropagation()}
+            onMouseDown={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 font-bold text-slate-800">
               <span>+ Add New Column</span>
